@@ -6,6 +6,9 @@ package labgob
 // outright crashes. so this wrapper around Go's encoding/gob warns
 // about non-capitalized field names.
 //
+//试图通过RPC发送非大写字段会产生一系列不当行为，
+//包括神秘的错误计算和彻底的崩溃。
+//所以这个围绕Go的编码/gob的包装器会警告非大写的字段名。
 
 import "encoding/gob"
 import "io"

@@ -8,18 +8,65 @@ package raft
 // test with the original before submitting.
 //
 
-import "testing"
+import (
+	"strconv"
+	"testing"
+)
 import "fmt"
 import "time"
 import "math/rand"
 import "sync/atomic"
 import "sync"
 
+/**
+timer test
+*/
+
+type q struct {
+	timer *time.Timer
+	t2    *time.Timer
+}
+
+func (qs *q) change() {
+	sec := rand.Int31() % 5
+	qs.timer.Reset(time.Duration(2) * time.Second)
+	qs.t2 = time.NewTimer(time.Duration(sec) * time.Second)
+	fmt.Println("start " + strconv.Itoa(int(sec)) + "s")
+}
+
+func (qs *q) ticker() {
+	for {
+		select {
+		case <-qs.timer.C:
+			qs.change()
+		case <-qs.t2.C:
+			println(time.Now().UnixMilli() / 1000)
+		}
+	}
+}
+
+func TestTimer(t *testing.T) {
+	v := q{}
+	v.timer = time.NewTimer(time.Duration(100) * time.Millisecond)
+	v.t2 = time.NewTimer(time.Duration(1000 * time.Millisecond))
+	v.ticker()
+}
+
+func TestGoFuncWait(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		go func() {
+			time.Sleep(time.Duration(5) * time.Second)
+		}()
+	}
+	fmt.Println("end")
+}
+
 // The tester generously allows solutions to complete elections in one second
 // (much more than the paper's range of timeouts).
 const RaftElectionTimeout = 1000 * time.Millisecond
 
 func TestInitialElection2A(t *testing.T) {
+	fmt.Println("==============================Test 1 Start==============================")
 	servers := 3
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
@@ -48,9 +95,12 @@ func TestInitialElection2A(t *testing.T) {
 	cfg.checkOneLeader()
 
 	cfg.end()
+	fmt.Println("==============================Test 1 End==============================")
 }
 
 func TestReElection2A(t *testing.T) {
+	// debug
+	Debug(dLog, "==============================Test 2-1 Start==============================")
 	servers := 3
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
@@ -58,17 +108,18 @@ func TestReElection2A(t *testing.T) {
 	cfg.begin("Test (2A): election after network failure")
 
 	leader1 := cfg.checkOneLeader()
-
+	Debug(dLog, "==============================Test 2-2 Start==============================")
 	// if the leader disconnects, a new one should be elected.
 	cfg.disconnect(leader1)
+	Debug(dLog, "==============================Test 2-4 Start==============================")
 	cfg.checkOneLeader()
-
+	Debug(dLog, "==============================Test 2-5 Start==============================")
 	// if the old leader rejoins, that shouldn't
 	// disturb the new leader. and the old leader
 	// should switch to follower.
 	cfg.connect(leader1)
 	leader2 := cfg.checkOneLeader()
-
+	Debug(dLog, "==============================Test 2-6 Start==============================")
 	// if there's no quorum, no new leader should
 	// be elected.
 	cfg.disconnect(leader2)
@@ -78,19 +129,23 @@ func TestReElection2A(t *testing.T) {
 	// check that the one connected server
 	// does not think it is the leader.
 	cfg.checkNoLeader()
+	Debug(dLog, "==============================Test 2-7 Start==============================")
 
 	// if a quorum arises, it should elect a leader.
 	cfg.connect((leader2 + 1) % servers)
 	cfg.checkOneLeader()
+	Debug(dLog, "==============================Test 2-8 Start==============================")
 
 	// re-join of last node shouldn't prevent leader from existing.
 	cfg.connect(leader2)
 	cfg.checkOneLeader()
-
+	// debug
+	Debug(dLog, "==============================Test 2 End==============================")
 	cfg.end()
 }
 
 func TestManyElections2A(t *testing.T) {
+	fmt.Println("==============================Test 3 Start==============================")
 	servers := 7
 	cfg := make_config(t, servers, false, false)
 	defer cfg.cleanup()
@@ -101,6 +156,7 @@ func TestManyElections2A(t *testing.T) {
 
 	iters := 10
 	for ii := 1; ii < iters; ii++ {
+		fmt.Println("==============================Test 3-1 Start==============================")
 		// disconnect three nodes
 		i1 := rand.Int() % servers
 		i2 := rand.Int() % servers
@@ -108,18 +164,19 @@ func TestManyElections2A(t *testing.T) {
 		cfg.disconnect(i1)
 		cfg.disconnect(i2)
 		cfg.disconnect(i3)
-
+		fmt.Println("==============================Test 3-1 Offline==============================")
 		// either the current leader should still be alive,
 		// or the remaining four should elect a new one.
 		cfg.checkOneLeader()
-
+		fmt.Println("==============================Test 3-1 Check==============================")
 		cfg.connect(i1)
 		cfg.connect(i2)
 		cfg.connect(i3)
+		fmt.Println("==============================Test 3-1 End==============================")
 	}
 
 	cfg.checkOneLeader()
-
+	fmt.Println("==============================Test 3 End==============================")
 	cfg.end()
 }
 
